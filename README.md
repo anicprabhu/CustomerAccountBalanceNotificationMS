@@ -236,23 +236,146 @@ hit endpoint using Postman
 
 GET to URL - http://localhost:8081/customer
 
-Verify the Output
+Verify the Output as below
+
+```json
+[
+    {
+        "customerId": 1,
+        "customerName": "Arijit",
+        "accountId": 12345
+    },
+    {
+        "customerId": 2,
+        "customerName": "Shreya",
+        "accountId": 54321
+    }
+]
+```
+
+### Add the GetCustomerbyID Method
+
+add the below method in CustomerController
+
+```java
+	@GetMapping("/customer/{customerId}")
+	public CustomerModel getCustomerById(@PathVariable("customerId") Integer customerId) {
+		
+		return customerService.getCustomerById(customerId);
+	}
+```
+
+Add the corresponding calling method in CustomerService
+
+```java
+	public CustomerModel getCustomerById(Integer customerId) {
+			return customerRepository.findById(customerId).get();
+	}
+```
+
+Restart the server
+
+Hit the postman GET Endpoint with URL `http://localhost:8081/customer/2`
+
+the Output will be like below
+
+```json
+{
+    "customerId": 2,
+    "customerName": "Shreya",
+    "accountId": 54321
+}
+
+```
+
+### Add the saveorUpdateCustomer Method
+
+Add the below method in CustomerController
+
+```java
+@PostMapping("/customer")
+	public CustomerModel saveOrUpdateCustomer(@RequestBody CustomerModel customer) {
+		return customerService.saveOrUpdateCustomer(customer);
+	}
+
+```
+
+Add the corresponding calling method in CustomerService
+
+```java
+	public CustomerModel saveOrUpdateCustomer(CustomerModel customer) {
+		return customerRepository.save(customer);
+	}
+
+```
+
+restart the server
+
+### Test the SaveCustomer Operation
+Hit Get to `http://localhost:8081/customer/2`
+
+Edit the response json to create new entity
 
 
+In Postman, select Request Type as - POST, URL as `http://localhost:8081/customer`, Body as ray, content type as application/json
+
+```json
+{
+    "customerName": "Sonu",
+    "accountId": 11111
+}
+```
+
+Ensure you get response as
+
+```json
+{
+    "customerId": 3,
+    "customerName": "Sonu",
+    "accountId": 11111
+}
+```
+
+reverify by hitting the GetAllCustomers `http://localhost:8081/customer`
 
 
+### Test the UpdateCustomer Functionality
+
+Send the POST request to `http://localhost:8081/customer` with Below Payload
+
+```json
+{
+    "customerId": 3,
+    "customerName": "Sonu",
+    "accountId": 22222
+}
+```
+reverify by hitting the GetAllCustomers `http://localhost:8081/customer`
 
 
+### Add the DeleteCustomer Functionality
 
+Add the below method in CustomerController
 
+```java
+@DeleteMapping("/customer/{customerId}")
+	public void deleteCustomerById(@PathVariable("customerId") Integer customerId) {
+		customerService.deleteCustomerbyId(customerId);
+	}
+```
 
+Add the corresponding calling method in CustomerService
 
+```java
+public void deleteCustomerbyId(Integer id) {		
+		customerRepository.deleteById(id);		 
+	}
+```
+Test the Delete Endpoint in Postman
 
+DELETE, URL - http://localhost:8081/customer/2
 
-
-
-
-
+Verify - http://localhost:8081/customer
 
 
 
