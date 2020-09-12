@@ -817,8 +817,81 @@ http://localhost:8080/customeraccountbalance/1
 configure the class to again call back the producer through message
 
 
+##Send back the Notification tha the reqeust is handled successfully
+
+Createw New for ProcessedNotifications
+
+Kill the Producer.bat
+
+Create new Producer
+bin\windows\kafka-topics.bat --create --topic ProcessedNotifications --bootstrap-server localhost:9092
+
+Create a listener
+bin\windows\kafka-console-consumer.bat --topic ProcessedNotifications --bootstrap-server localhost:9092
+
+Alter the HandleCustomerAccountBalanceNotification class
+
+```java
+@Component
+public class HandleCustomerAccountBalanceNotification {
+	
+	@Autowired
+	private KafkaTemplate<String, String> kafkaTemplate;
+
+	@KafkaListener(topics="NotificationQueue")
+	public void listener(String customerId) {
+		System.out.println("HandleCustomerAccountBalanceNotification - Sending Notification from Customer "+ customerId);
+		kafkaTemplate.send("ProcessedNotifications", "Notification handled Successfully for customer - "+ customerId);
+	}
+
+}
+```
+
+Add a listener in the Producer CustomerAccountBalanceService class as well.
+
+
+spring.kafka.bootstrap-servers=localhost:9092
+spring.kafka.consumer.group-id=myGroup
+
+```java
+	@KafkaListener(topics="ProcessedNotifications")
+	public void returnMessage(String message) {
+		System.out.println("CustomerAccountBalanceMS - "+ message);
+	}
+```
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Final Integration Test
+
+GET http://localhost:8080/customeraccountbalance/1
