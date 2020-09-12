@@ -860,9 +860,59 @@ spring.kafka.consumer.group-id=myGroup
 	}
 ```
 
+Final Integration Test
+
+GET http://localhost:8080/customeraccountbalance/1
 
 
 
+# Enable Services for kubernetes
+
+## Packaging CustomerMS
+
+Update the Application.properties to remove the server port
+
+Run Mvn clean install
+
+ Write a DockerFile
+	
+	FROM openjdk:8-jdk-alpine
+	RUN addgroup -S spring && adduser -S spring -G spring
+	USER spring:spring
+	ARG JAR_FILE=target/*.jar
+	COPY ${JAR_FILE} app.jar
+	ENTRYPOINT ["java","-jar","/app.jar"]
+
+
+ run docker build command
+	
+	docker build -t customer/customer-ms:1.0 .
+
+
+run the container 
+
+docker run -p 8080:8080 customer/customer-ms:1.0
+
+access the server from postman - GET http://localhost:8080/customer/1
+
+
+
+
+ kubectl create deployment customer-ms --image=customer/customer-ms:1.0 --dry-run -o=yaml > deployment.yaml
+
+echo --- >> deployment.yaml
+
+kubectl create service clusterip customer-ms --tcp=8080:8080 --dry-run -o=yaml >> deployment.yaml
+
+view the deployment file
+
+kubectl apply -f deployment.yaml
+
+kubectl get all
+
+kubectl port-forward svc/customer-ms 8081:8080
+
+curl localhost:8081/customer/1
 
 
 
