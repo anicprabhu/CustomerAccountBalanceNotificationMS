@@ -378,5 +378,447 @@ DELETE, URL - http://localhost:8081/customer/2
 Verify - http://localhost:8081/customer
 
 
+# AccountBalanceMS
+
+Next we proceed to creating the AccountBalanceMS
+
+
+## First we need to start by installing Couchbase
+
+1. Download the Couchbase Community edition
+2. Install with default config
+3. Launch the Home page at http://localhost:8091/ui/index.html
+4. create a new cluster named AccountBalanceCluster, with Usernme and pasword as Administrator
+5. In the cluster, create bucket, AccountBalanceBucket, with default congigs.
+
+
+## Next create a Spring boot Starter Project for AccountBalanceMS
+1. Name as AccountBalanceMS, package as com.example.accoutbalance
+2. Add dependencies as spring web, dev tools, actuator, Apring Data Couchbase
+
+
+## RUn the skeleton
+
+## Create AccountBalance Model
+1. Create a new Class AccountBalanceModel in Package com.example.accoutbalance.model
+
+2. Annotate the class with @Document Annotation
+
+3. Add the below fields and Annotations
+
+```java
+	@Id
+	private String accountID;
+	
+	@Field
+	private Integer accountBalance;
+
+```
+
+
+## Create AccountBalance Repository
+```java
+	public interface AccountBalanceRepository extends CouchbaseRepository<AccountBalanceModel, String>{
+
+}
+
+```
+
+	
+## Test the repository connection
+
+```java
+@SpringBootApplication
+public class AccountBalanceMsApplication implements CommandLineRunner{
+	
+	@Autowired
+	AccountBalanceRepository accountBalanceRepository;
+	
+	private static final Logger log = LoggerFactory.getLogger(AccountBalanceMsApplication.class);
+
+	public static void main(String[] args) {
+		SpringApplication.run(AccountBalanceMsApplication.class, args);
+	}
+
+	@Override
+	public void run(String... args) throws Exception {
+		List<AccountBalanceModel> accountBalances = new ArrayList<>();
+		accountBalances.add(new AccountBalanceModel("12345", 100000));
+		accountBalances.add(new AccountBalanceModel("54321", 200000));
+		//Save test data to repository
+		accountBalanceRepository.saveAll(accountBalances);
+		
+		//Retrieve test data
+		log.info("Fetched the record from Couchbase - "+ accountBalanceRepository.findById("12345").get());		
+		
+	}
+
+}
+```
+### Add the config Data
+
+```java
+spring.couchbase.connection-string=couchbase://127.0.0.1
+spring.couchbase.username=Administrator
+spring.couchbase.password=Administrator
+spring.data.couchbase.bucket-name=AccountBalanceBucket
+spring.data.couchbase.auto-index=true
+server.port=8082
+
+```
+### Run the application 
+
+1. Verify in the Logs that the Record is printed.
+
+2. Verify in the Couchbase console that the Records are available
+
+### Add the Controller and Service Classes
+
+Create Controller and Service Class
+
+Annotate both classes
+
+Write the service class
+```java
+@Service
+public class AccountBalanceService {
+
+	@Autowired
+	AccountBalanceRepository accountBalanceRepository;
+	
+	public AccountBalanceModel getAccountBalance(String accountId) {
+
+		return accountBalanceRepository.findById(accountId).get();
+	}
+}
+
+```
+
+Write the Controller Class
+```java
+@RestController
+public class AccountBalanceController {
+	
+	@Autowired
+	AccountBalanceService accountBalanceService;
+	
+	@GetMapping("/accountBalance/{accountId}")
+	public AccountBalanceModel getAccountBalance(@PathVariable("accountId") String accountId) {
+		return accountBalanceService.getAccountBalance(accountId);
+	}	
+}
+```
+
+Hit the Request
+
+http://localhost:8082/accountBalance/12345
+
+
+Get the error below
+
+```json
+{
+    "timestamp": "2020-09-12T07:18:45.312+00:00",
+    "status": 404,
+    "error": "Not Found",
+    "message": "No message available",
+    "path": "/accountBalance/12"
+}
+```
+
+It is because we do not have the index,
+
+use the below command to define the index.
+```sql
+CREATE INDEX `AccountBalanceBucket` ON `AccountBalanceBucket`(`_class`) WHERE (`_class` = "AccountBalanceBucket.AccountBalanceModel") 
+```
+
+Restart the service 
+
+Hit the Request
+
+http://localhost:8082/accountBalance/12345
+
+```json
+	{
+		"accountID": "12345",
+		"accountBalance": 100000
+	}
+```
+
+Next Implement the saveOrUpdateAccountBalance
+
+Below is the code in Service class
+
+```java
+	public AccountBalanceModel saveOrUpdateAccountBalance(AccountBalanceModel accountBalanceModel) {
+		return accountBalanceRepository.save(accountBalanceModel);
+	}
+
+
+```
+
+Add below code in Controller Class
+
+```java
+	@PostMapping("/accountBalance")
+	public AccountBalanceModel saveOrUpdateAccountBalance(@RequestBody AccountBalanceModel accountBalanceModel) {		
+		return accountBalanceService.saveOrUpdateAccountBalance(accountBalanceModel);		
+	}
+
+```
+
+Test the code
+
+Start the service
+
+Get the request
+http://localhost:8082/accountBalance/12345
+
+
+Post a new request with below Payload
+
+{
+    "accountID": "11111",
+    "accountBalance": 100000
+}
+
+URL as http://localhost:8082/accountBalance
+
+Verify with the Get Rquest
+
+http://localhost:8082/accountBalance/11111
+
+
+#Delete Code
+
+Write Below code in Service Class
+```Java
+	public void deleteAccountBalance(String accountId) {
+		accountBalanceRepository.deleteById(accountId);
+	}
+
+```
+Write below code in controller class
+
+```java
+	@DeleteMapping("/accountBalance/{accountId}")
+	public void deleteAccountBalance(@PathVariable("accountId") String accountId) {
+		accountBalanceService.deleteAccountBalance(accountId);
+	}
+```
+
+
+Test the code
+
+GET http://localhost:8082/accountBalance/11111
+
+
+DELETE http://localhost:8082/accountBalance/11111
+
+
+GET http://localhost:8082/accountBalance/11111
+
+#CustomerAccountBalanceMS
+
+next we will create a MS which will orchestrate the Microservices.
+
+this MS will call customerMS with the given customerId, and find out the corresponding accountId, the using the accountId, I will call AccountBalanceMS to fetch the Balance in the account of the Customer,
+
+Lets start with the MS skeleton,
+
+start a new SpringBoot project with dependencies as spring web, actuator, dev tools, Kafka
+
+Name: CustomerAccountBalanceMS
+
+
+
+Create Service and Controller Classes
+
+In the Controller Class
+```java
+@RestController
+public class CustomerAccountBalanceController {
+	
+	@Autowired
+	CustomerAccountBalanceService customerAccountBalanceService;
+	
+	@GetMapping("/customeraccountbalance/{customerId}")
+	public String getCustomerAccountBalance(@PathVariable("customerId") Integer customerId) {
+		return customerAccountBalanceService.getCustomerAccountBalance(customerId);
+		
+	}
+
+}
+
+```
+
+
+In the Service Class
+
+```java
+@Service
+public class CustomerAccountBalanceService {
+
+	public String getCustomerAccountBalance(Integer customerId) {
+		
+		
+		//Call CustomerMS
+		
+		
+		//Fetch the AccountId for the Customer
+		
+		//Call AccountBalanceMS
+		
+		//Fetch and return the Balance
+		
+		
+		return null;
+		
+	}
+
+}
+```
+Create the DTO Classes
+
+CustomerDTO
+
+```java
+	private Integer customerId;
+	
+	private String customerName;
+	
+	private Integer accountId;
+```
+
+AccountBalanceDTO
+
+```java
+	private String accountID;	
+
+	private Integer accountBalance;
+```
+
+
+In the Service class, Autowire the rest template
+
+```java
+	@Autowired
+	RestTemplate restTemplate;
+	
+	@Bean
+	public RestTemplate restTemplate() {
+	    return new RestTemplate();
+	}
+
+```
+
+In the postman, hit request
+
+http://localhost:8081/customer/1
+
+Copy this URL ang wrie below in the service Class
+
+```java
+public Integer getCustomerAccountBalance(Integer customerId) {
+
+		String customerMsUrl = "http://localhost:8081/customer/"+customerId;
+		
+		CustomerDTO customerDTO = restTemplate.getForObject(customerMsUrl, CustomerDTO.class);
+		
+		String accountBalanceMsUrl = "http://localhost:8082/accountBalance/" + customerDTO.getAccountId();
+		
+		AccountBalanceDTO accountBalanceDTO = restTemplate.getForObject(accountBalanceMsUrl, AccountBalanceDTO.class);
+		
+		System.out.println(customerDTO);
+		
+		System.out.println(accountBalanceDTO);
+				
+		return accountBalanceDTO.getAccountBalance();
+		
+	}
+```
+
+Send a GET request to http://localhost:8080/customeraccountbalance/1
+
+Resonse should be 100000
+
+# NotificationMS
+
+Next and the last phase is to have notification sent to the customer that his account balance is accessed,
+
+DOwnload Kafka
+
+unzip the distribution
+
+Start the Zookeeper Server
+bin\windows\zookeeper-server-start.bat config\zookeeper.properties
+
+Start the Kafka Server
+bin\windows\kafka-server-start.bat config\server.properties
+
+Create a topic
+bin\windows\kafka-topics.bat --create --topic NotificationQueue --bootstrap-server localhost:9092
+
+Create a listener
+bin\windows\kafka-console-consumer.bat --topic NotificationQueue --bootstrap-server localhost:9092
+
+create a producer
+bin\windows\kafka-console-producer.bat --topic NotificationQueue --bootstrap-server localhost:9092
+
+send message to from producer
+Write Below code in the CuetomerAccountBalanceMS service
+
+```java
+	@Autowired
+	private KafkaTemplate<String, String> kafkaTemplate;
+
+
+	kafkaTemplate.send("NotificationQueue", customerDTO.getCustomerId().toString());
+
+```
+Start the Servers, send the request - http://localhost:8080/customeraccountbalance/1
+
+validate the message in the kafka consumer
+
+# NotificationMS
+
+Create a new project with spring web actuator, devtools and kafka as listener,
+
+Creatye a new class HandleCustomerAccountBalanceNotification with Below Code.
+
+```java
+@Component
+public class HandleCustomerAccountBalanceNotification {
+
+	@KafkaListener(topics="NotificationQueue")
+	public void listener(String customerId) {
+		System.out.println("Sending Notofication from Customer "+ customerId);
+		System.out.println("Notification handled Successgully for customer"+ customerId);
+		//return "Notification handled Successgully for customer"+ customerId;
+	}
+
+}
+
+```
+
+Add the application.properties
+```json
+spring.kafka.bootstrap-servers=localhost:9092
+spring.kafka.consumer.group-id=myGroup
+server.port=8083
+```
+
+Start the servers
+
+Hit the request aain and check the MS console logs for the Data
+http://localhost:8080/customeraccountbalance/1
+
+configure the class to again call back the producer through message
+
+
+
+
+
 
 

@@ -12,7 +12,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import com.example.customer.model.CustomerModel;
 import com.example.customer.repository.CustomerRepository;
-import com.sun.tools.sjavac.Log;
 
 @SpringBootApplication
 public class CustomerMsApplication implements CommandLineRunner{
